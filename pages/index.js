@@ -76,7 +76,8 @@ function Index() {
             w="40%"
             h="100%"
             border="1px solid black"
-            justifyContent="space-evenly"
+            justifyContent="center"
+            spacing='12px'
           >
             <Box
               w="120px"
@@ -92,7 +93,6 @@ function Index() {
               border="1px solid black"
               bgColor="black"
             />
-            <Text fontSize="2xl">GAWON</Text>
             <VStack w="60%" h="50%">
               <HStack w="80%" h="20%" justify="space-evenly">
                 <Button fontSize="2xl" w="48px" h="48px">

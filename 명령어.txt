@@ -1,0 +1,3 @@
+npm run dev
+
+json-server ./db.json --port 4000
