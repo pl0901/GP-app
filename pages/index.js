@@ -9,6 +9,7 @@ import {
 import { FaAsterisk, FaHashtag, FaBell } from 'react-icons/fa';
 import { IoPersonSharp } from 'react-icons/io5';
 import { ImCross } from 'react-icons/im';
+import * as faceapi from 'face-api.js'
 
 import React, { useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
@@ -20,23 +21,79 @@ function Index() {
     navigator.mediaDevices
       .getUserMedia({
         video: true,
+        audio: false
       })
       .then((stream) => {
         //비디오 tag에 stream 추가
-        let video = videoRef.current;
 
-        video.srcObject = stream;
+        videoRef.current.srcObject = stream;
 
-        video.play();
       })
       .catch((error) => {
         console.log(error);
       });
   };
 
+
   useEffect(() => {
-    getUserCamera();
+    Promise.all([
+      faceapi.nets.ssdMobilenetv1.loadFromUri('/models'),
+      faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
+      faceapi.nets.faceRecognitionNet.loadFromUri('/models')
+    ]).then(res => {
+      getUserCamera();
+      console.log('Camera on')
+    }).then(res => {
+      faceRecognition()
+      console.log('face')
+    })
   }, [videoRef]);
+
+  
+  const getLabel = () => {
+    const labels = ['eunnho', 'gawon']
+    return Promise.all(
+      labels.map(async label => {
+        const desc = [];
+        const image = await faceapi.fetchImage(`/labels/${label}.jpg`)
+        const detection = await faceapi.detectSingleFace(image).withFaceLandmarks().withFaceDescriptor()
+  
+        desc.push(detection.descriptor)
+        return new faceapi.LabeledFaceDescriptors(label, desc)
+      })
+    )
+  }
+
+  const faceRecognition = async () => {
+    const labeledFaceDescritors = await getLabel()
+    const faceMatcher = new faceapi.FaceMatcher(labeledFaceDescritors)
+    console.log('video', videoRef)
+    videoRef.current.addEventListener('play', () => {
+      const canvas = faceapi.createCanvasFromMedia(videoRef.current)
+      canvas.style.cssText = "position: absolute; top: 90px; left: 70px;";
+      document.body.append(canvas)
+      console.log(videoRef.current.clientWidth, videoRef.current.clientHeight)
+      const displaySize = {width: videoRef.current.clientWidth, height: videoRef.current.clientHeight}
+      faceapi.matchDimensions(canvas, displaySize)
+
+      setInterval(async () => {
+        const detections = await faceapi.detectAllFaces(videoRef.current).withFaceLandmarks().withFaceDescriptors()
+        const resizedDetections = faceapi.resizeResults(detections, displaySize)
+        canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height)
+        const results = resizedDetections.map(d => {
+          return faceMatcher.findBestMatch(d.descriptor)
+        })
+        results.forEach((result, i) => {
+          const box = resizedDetections[i].detection.box
+          const drawBox = new faceapi.draw.DrawBox(box, {label: result})
+          drawBox.draw(canvas)
+        })
+
+      }, 100)
+    })
+  }
+
+
   return (
     <Box>
       <VStack
@@ -67,7 +124,7 @@ function Index() {
           >
             {/* 웹캠 */}
             <Box w="80%" h="60%" border="1px solid black">
-              <video ref={videoRef}></video>
+              <video ref={videoRef} autoPlay></video>
             </Box>
             <Box w="48px" h="28px" border="1px solid black" />
           </VStack>
