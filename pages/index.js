@@ -1,3 +1,5 @@
+// 로비폰 페이지
+
 import {
   Box,
   Button,
@@ -17,7 +19,7 @@ import { useRouter } from 'next/router';
 function Index() {
   const videoRef = useRef(null);
   const router = useRouter();
-  const getUserCamera = () => {
+  const getUserCamera = () => { // 카메라를 얻어오는 함수 카메라에 내 얼굴 stream이 보여지는 함수. 웹캠이 화면 스트림 정보를 가져오는 함수
     navigator.mediaDevices
       .getUserMedia({
         video: true,
@@ -35,41 +37,42 @@ function Index() {
   };
 
 
-  useEffect(() => {
+  useEffect(() => { // useEffect가 페이지가 실행되고 제일 처음 실행되는 함수. 웹캠이 켜진다고 해도 학습시킨 모델을 가져와야 하기 때문에 
     Promise.all([
-      faceapi.nets.ssdMobilenetv1.loadFromUri('/models'),
+      faceapi.nets.ssdMobilenetv1.loadFromUri('/models'), // loadFromUri에서 모델 가져오고 
       faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
       faceapi.nets.faceRecognitionNet.loadFromUri('/models')
-    ]).then(res => {
+    ]).then(res => { // 가져오면 카메라 켜라
       getUserCamera();
       console.log('Camera on')
-    }).then(res => {
-      faceRecognition()
+    }).then(res => { // 그다음 face 인식을 해라 
+      faceRecognition() // 이게 메인인데... 
       console.log('face')
     })
   }, [videoRef]);
 
   
-  const getLabel = () => {
-    const labels = ['eunnho', 'gawon']
+  const getLabel = async () => { // 우리가 넣은 사진을 바탕으로 학습하는 부분
+    const labels = await fetch('http://localhost:3000/api/getList') // lables 폴더에 있는 애들들 가져오고
+    const data = await labels.json()
     return Promise.all(
-      labels.map(async label => {
+      data.map(async label => {
         const desc = [];
-        const image = await faceapi.fetchImage(`/labels/${label}.jpg`)
-        const detection = await faceapi.detectSingleFace(image).withFaceLandmarks().withFaceDescriptor()
+        const image = await faceapi.fetchImage(`/labels/${label}.jpg`) // 사진을 불러오고
+        const detection = await faceapi.detectSingleFace(image).withFaceLandmarks().withFaceDescriptor() // detectSingleFace : label 폴더에 있는 사진 바탕으로 학습한다
   
         desc.push(detection.descriptor)
-        return new faceapi.LabeledFaceDescriptors(label, desc)
+        return new faceapi.LabeledFaceDescriptors(label, desc) // 학습 끝나면 내 이름을 desc에 넣는것. 학습 끝났으니까 라벨붙이는것
       })
     )
   }
 
   const faceRecognition = async () => {
-    const labeledFaceDescritors = await getLabel()
-    const faceMatcher = new faceapi.FaceMatcher(labeledFaceDescritors)
+    const labeledFaceDescritors = await getLabel() // 제일 처음 getLable 이거 실행
+    const faceMatcher = new faceapi.FaceMatcher(labeledFaceDescritors) // FaceMatcher 웹캠 화면이랑 라벨이랑 매칭하는함수
     console.log('video', videoRef)
-    videoRef.current.addEventListener('play', () => {
-      const canvas = faceapi.createCanvasFromMedia(videoRef.current)
+    videoRef.current.addEventListener('play', () => { // videoRef.current : canvas에 대한 style 정의 (크기 높이 정의)
+      const canvas = faceapi.createCanvasFromMedia(videoRef.current) // canvas : 웹캠 화면에 네모 네모 빔
       canvas.style.cssText = "position: absolute; top: 90px; left: 70px;";
       document.body.append(canvas)
       console.log(videoRef.current.clientWidth, videoRef.current.clientHeight)
@@ -77,19 +80,19 @@ function Index() {
       faceapi.matchDimensions(canvas, displaySize)
 
       setInterval(async () => {
-        const detections = await faceapi.detectAllFaces(videoRef.current).withFaceLandmarks().withFaceDescriptors()
-        const resizedDetections = faceapi.resizeResults(detections, displaySize)
+        const detections = await faceapi.detectAllFaces(videoRef.current).withFaceLandmarks().withFaceDescriptors() // detectAllFaces 0.1초 간격으로 얼굴 트래킹 함
+        const resizedDetections = faceapi.resizeResults(detections, displaySize) //resizedDetections 얼굴 사이즈 맞춰서 사각형 만들어주는것. canvas가 얼굴 움직임 따라가는거
         canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height)
         const results = resizedDetections.map(d => {
           return faceMatcher.findBestMatch(d.descriptor)
         })
-        results.forEach((result, i) => {
+        results.forEach((result, i) => { // 실행하면 canvas가 막 여러개 뜨는데, 실시간으로 트래킹 하는건데 , results가 canvas들의 배열
           const box = resizedDetections[i].detection.box
-          const drawBox = new faceapi.draw.DrawBox(box, {label: result})
+          const drawBox = new faceapi.draw.DrawBox(box, {label: result}) 
           drawBox.draw(canvas)
         })
 
-      }, 100)
+      }, 100) // setInterval: 0.1초 간격으로 함수를 실행하는, 얼굴 끊임없이 찾을수 있게
     })
   }
 

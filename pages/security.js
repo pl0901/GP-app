@@ -1,6 +1,7 @@
+// 경비실 모드 페이지
+
 import {
   Avatar,
-  Box,
   Card,
   CardBody,
   CardHeader,
@@ -30,7 +31,10 @@ function Security() {
   const [room, setRoom] = useState('');
   const [toggle, setToggle] = useState(0);
   const [result, setResult] = useState([]);
-  const onUpload = (e) => {
+
+
+
+  const onUpload = (e) => { // onUpload 사진 올리는 함수
     const file = e.target.files[0];
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -44,35 +48,64 @@ function Security() {
     });
   };
 
-  const onSave = (e) => {
+  const onSave = (e) => { // onSave 서버에 저장하고 자동으로 lables 폴더에 넣는 함수
     const data = {
       image: imageSrc,
       name: name,
       room: room,
     };
-    const res = fetch('http://localhost:4000/regist', {
+    const res = fetch('http://localhost:4000/regist', { // 서버에 사진 저장
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     })
       .then((res) => setToggle((prev) => prev + 1))
+      .then(async res => {
+        const img = imageSrc.replace(/^data:image\/jpeg;base64,/, '');
+        console.log('이미지', img)
+        const result = await fetch('http://localhost:3000/api/getImage', { // labels 폴더에 저장
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',  // JSON 형식으로 전송한다고 명시
+          },
+          body: JSON.stringify({url: img, name: name})
+        })
+        console.log('서버에서의 읭답', result)
+      })
       .then((res) => {
         onClose();
         setImageSrc(null);
       });
   };
 
-  const onDelete = (idx) => {
-    const res = fetch(`http://localhost:4000/regist/${idx}`, {
+  const onDelete = async (idx) => {
+    const item = await fetch(`http://localhost:4000/regist/${idx}`) // 삭제할 애들 이름 가져오는거
+    const data = await item.json()
+    const name = data['name']
+
+    try {
+      const delRes = await fetch('http://localhost:3000/api/getImage', { // labels 폴더에 있는것도 삭제
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({name: name})
+    })
+    console.log('삭제 후 서버 응답', delRes)
+    } catch (error) {
+      console.log(error)
+    }
+
+    const res = fetch(`http://localhost:4000/regist/${idx}`, { // 서버에 있는거 삭제
       method: 'DELETE',
     }).then((res) => setToggle((prev) => prev + 1));
   };
 
-  useEffect(() => {
+  useEffect(() => { // 서버 refresh 하는거
     const getData = async () => {
       const res = await fetch('http://localhost:4000/regist');
       const data = await res.json();
-      console.log(data);
+      console.log('data', data);
       setResult([]);
       setResult(data);
       console.log(result);
